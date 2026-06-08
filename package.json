@@ -4,10 +4,11 @@
   "description": "Minimal CLI that scans a local repo for safe Tailwind CSS v3 -> v4 migration issues and writes a markdown report.",
   "type": "module",
   "bin": {
-    "depshift-tailwind": "dist/cli.js"
+    "depshift-tailwind": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "postbuild": "node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
     "test": "vitest run",
     "dev": "tsx src/cli.ts"
   },

@@ -14,11 +14,13 @@ export interface ScanResult {
   filesScanned: string[];
   suggestions: TransformSuggestion[];
   writeMode: boolean;
+  checkMode: boolean;
   filesModified: string[];
 }
 
 export interface ScanOptions {
   writeMode?: boolean;
+  checkMode?: boolean;
 }
 
 /**
@@ -34,7 +36,8 @@ export async function scanRepository(
   rootDir: string,
   options: ScanOptions = {},
 ): Promise<ScanResult> {
-  const writeMode = options.writeMode ?? false;
+  const checkMode = options.checkMode ?? false;
+  const writeMode = (options.writeMode ?? false) && !checkMode;
   const packageInfo = detectTailwindPackage(rootDir);
   const filesScanned = await findCandidateFiles(rootDir);
 
@@ -70,6 +73,7 @@ export async function scanRepository(
     filesScanned,
     suggestions,
     writeMode,
+    checkMode,
     filesModified,
   };
 }

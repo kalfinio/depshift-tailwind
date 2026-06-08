@@ -3,7 +3,7 @@
 A minimal, local-only CLI that scans a repository for **safe Tailwind CSS v3 → v4
 migration issues** and writes a markdown report. By default it does **not**
 modify any of your files; pass `--write` to apply the currently supported safe
-transforms in place.
+transforms in place, or `--check` to fail CI when suggestions are found.
 
 ## What it is
 
@@ -21,10 +21,17 @@ npm run build
 
 ## Run
 
-From the root of the project you want to scan:
+Build the CLI first:
+
+```bash
+npm run build
+```
+
+From this repository, you can run the compiled CLI directly:
 
 ```bash
 node dist/cli.js
+node dist/cli.js --check
 ```
 
 This writes `depshift-report.md` to the current working directory and prints a
@@ -33,6 +40,36 @@ report:
 
 ```bash
 node dist/cli.js --write
+```
+
+Because `package.json` exposes a `depshift-tailwind` bin entry, the same built
+CLI can also be invoked through npm/npx from this package directory:
+
+```bash
+npx .
+npx . --check
+npx . --write
+```
+
+Use `--write` only from the repository you intend to modify; it applies safe
+transforms to scanned files in the current working directory. `--check` never
+modifies files.
+
+When scanning another local repository, run the package from that repository's
+root. For example, from `demo-repo` in this workspace:
+
+```bash
+node ../dist/cli.js
+node ../dist/cli.js --check
+node ../dist/cli.js --write
+```
+
+After publishing or installing the package, use the bin name:
+
+```bash
+depshift-tailwind
+depshift-tailwind --check
+depshift-tailwind --write
 ```
 
 During development you can run it without building:
@@ -75,6 +112,13 @@ Without `--write`, this tool **does not modify your files**. It only generates
 `depshift-report.md` with suggested before/after changes for you to apply
 yourself. With `--write`, the same report is generated after safe transforms are
 written, and the report lists which files were modified.
+
+## Check mode
+
+`--check` is intended for CI. It scans and writes `depshift-report.md`, but never
+modifies source files. It exits with code `1` when suggestions are found and
+code `0` when there are no suggestions. `--write` and `--check` cannot be used
+together.
 
 ## Development
 

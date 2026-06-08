@@ -14,8 +14,10 @@ export function buildMarkdownReport(scanResult: ScanResult): string {
     filesScanned,
     suggestions,
     writeMode,
+    checkMode,
     filesModified,
   } = scanResult;
+  const mode = checkMode ? "check" : writeMode ? "write" : "report-only";
 
   const lines: string[] = [];
 
@@ -39,10 +41,13 @@ export function buildMarkdownReport(scanResult: ScanResult): string {
   // --- Summary ---
   lines.push("## Summary");
   lines.push("");
-  lines.push(`- **Mode:** ${writeMode ? "write" : "report-only"}`);
+  lines.push(`- **Mode:** ${mode}`);
   lines.push(`- **Files scanned:** ${filesScanned.length}`);
   lines.push(`- **Suggestions found:** ${suggestions.length}`);
   lines.push(`- **Files modified:** ${filesModified.length}`);
+  if (checkMode) {
+    lines.push(`- **Check result:** ${suggestions.length === 0 ? "passed" : "failed"}`);
+  }
   lines.push("");
 
   // --- Files modified ---
@@ -92,7 +97,13 @@ export function buildMarkdownReport(scanResult: ScanResult): string {
   // --- Footer ---
   lines.push("---");
   lines.push("");
-  if (!writeMode) {
+  if (checkMode) {
+    lines.push(
+      suggestions.length === 0
+        ? "> Check mode passed: no migration suggestions were found and no files were modified."
+        : "> Check mode failed: migration suggestions were found. No files were modified.",
+    );
+  } else if (!writeMode) {
     lines.push(
       "> Report-only mode: no files were modified. Run with `--write` to apply the safe transforms.",
     );
