@@ -1,254 +1,124 @@
 # DepShift Tailwind
 
-A minimal, local-only CLI that scans a repository for **safe Tailwind CSS v3 → v4
-migration issues** and writes a markdown report. By default it does **not**
-modify any of your files; pass `--write` to apply the currently supported safe
-transforms in place, or `--check` to fail CI when suggestions are found.
+> Safe Tailwind v3 → v4 migration checks for pull requests.
 
-## What it is
+DepShift scans your repo for supported Tailwind v3 patterns, reports safe
+migration suggestions, can apply safe fixes locally, and can fail CI when
+migration issues exist. Everything runs on your filesystem — no backend, no
+database, no auth, no external APIs.
 
-DepShift Tailwind reads your project, detects whether `tailwindcss` is installed,
-scans your config and source files, and reports a set of safe, mechanical v3 → v4
-changes with clear before/after snippets. There is no backend, no database, no
-auth, and no external/paid APIs — everything runs locally over your filesystem.
+## Why it exists
 
-## Install
+Tools like Renovate and Dependabot open dependency-upgrade PRs, but they bump
+versions — they don't fix the breaking *code* patterns a major upgrade
+introduces. DepShift is a small codemod/check layer focused on the migration
+work itself: it finds known Tailwind v3 → v4 patterns, shows the exact change,
+and can either apply them or gate them in CI.
+
+## Features
+
+- Scan Tailwind config and source files for known v3 → v4 patterns
+- Generate a markdown report (`depshift-report.md`) with before/after snippets
+- Apply safe fixes in place with `--write` (AST-based, opt-in)
+- Fail CI when suggestions exist with `--check`
+- Emit structured, machine-readable results with `--json`
+- GitHub Actions workflow with a job summary
+- Sticky pull request comment (created once, updated on re-runs)
+- Upload the markdown report as a build artifact
+
+## Installation & local usage
+
+Requires Node.js 18+ (the GitHub Action uses Node 20).
 
 ```bash
 npm install
 npm run build
 ```
 
-## Run
-
-Build the CLI first:
+Then run the compiled CLI from the root of the repo you want to scan:
 
 ```bash
-npm run build
+node dist/cli.js                # report-only: write depshift-report.md, change nothing
+node dist/cli.js --write        # apply the supported safe transforms in place
+node dist/cli.js --check        # CI mode: exit 1 if any suggestions are found
+node dist/cli.js --json         # print structured JSON to stdout
+node dist/cli.js --check --json # check mode + JSON (exit 1 on suggestions)
 ```
 
-From this repository, you can run the compiled CLI directly:
+Every run writes `depshift-report.md` to the current directory. `--write` and
+`--check` cannot be combined. With `--json`, stdout is valid JSON only (runtime
+errors go to stderr).
 
-```bash
-node dist/cli.js
-node dist/cli.js --check
+## GitHub Actions usage
+
+The repo ships a workflow at `.github/workflows/depshift-tailwind.yml` that runs
+on every `pull_request`. It:
+
+1. builds the CLI and runs `node dist/cli.js --check --json`,
+2. posts — and on re-runs updates — a single comment on the PR summarizing the result,
+3. uploads `depshift-report.md` as the `depshift-report` artifact, and
+4. fails the job when migration suggestions are found.
+
+The comment, summary, and artifact steps run first, so you still get feedback on
+the PR even when the check fails. PR comments need `pull-requests: write` and
+`issues: write` permissions, which the workflow declares, and it uses the
+built-in `GITHUB_TOKEN` — no GitHub App or server required.
+
+## Supported transforms
+
+DepShift uses [ts-morph](https://ts-morph.com/) to edit the AST, so changes are
+syntax-aware rather than blind text replacement.
+
+**1. Tailwind config `content` array → object form**
+
+```diff
+- content: ["./src/**/*.{ts,tsx}"]
++ content: { files: ["./src/**/*.{ts,tsx}"] }
 ```
 
-This writes `depshift-report.md` to the current working directory and prints a
-short summary to the terminal. To apply safe transforms and then write the
-report:
+**2. Arbitrary `rgba()` shadow → v4 `rgb()` color syntax**
 
-```bash
-node dist/cli.js --write
+Inside JSX `className` strings, plain string literals, and no-substitution
+template literals:
+
+```diff
+- shadow-[0_0_10px_rgba(0,0,0,0.2)]
++ shadow-[0_0_10px_rgb(0_0_0_/_0.2)]
 ```
 
-Because `package.json` exposes a `depshift-tailwind` bin entry, the same built
-CLI can also be invoked through npm/npx from this package directory:
+**Scanned:** `tailwind.config.{ts,js,mjs,cjs}` at the repo root, plus `*.ts` /
+`*.tsx` under `src/`, `app/`, and `components/`.
 
-```bash
-npx .
-npx . --check
-npx . --write
-```
+**Ignored:** `node_modules`, `dist`, `build`, `.next`, `.git`, `coverage`,
+`__fixtures__`, `__tests__`, and `*.test.*` / `*.spec.*` files.
 
-Use `--write` only from the repository you intend to modify; it applies safe
-transforms to scanned files in the current working directory. `--check` never
-modifies files.
+## Safety model
 
-When scanning another local repository, run the package from that repository's
-root. For example, from `demo-repo` in this workspace:
+- **Report-only by default.** Without `--write`, no files are modified — you only
+  get `depshift-report.md`.
+- **`--write` is explicit.** It applies only the supported safe transforms, and
+  the report lists exactly which files changed.
+- **`--check` never modifies files.** It is read-only and intended for CI.
+- **Full before/after detail lives in the markdown report**, not in the terminal
+  output.
+- **JSON output omits large before/after code strings** so it stays small for CI
+  and tooling; it carries counts, repo-relative file paths, and transform names.
 
-```bash
-node ../dist/cli.js
-node ../dist/cli.js --check
-node ../dist/cli.js --write
-```
+## Current status
 
-After publishing or installing the package, use the bin name:
+DepShift Tailwind is an early MVP. It deliberately ships a **small, safe set of
+transforms** rather than attempting a full migration. It does **not** fully
+migrate a project to Tailwind v4 — treat it as an assistant that handles a few
+well-understood patterns and surfaces them in PRs. Always review the generated
+report before merging.
 
-```bash
-depshift-tailwind
-depshift-tailwind --check
-depshift-tailwind --write
-```
+## Roadmap
 
-During development you can run it without building:
-
-```bash
-npm run dev
-```
-
-## What it currently detects
-
-1. **Tailwind config `content` array → object form**
-
-   ```diff
-   - content: ["./src/**/*.{ts,tsx}"]
-   + content: { files: ["./src/**/*.{ts,tsx}"] }
-   ```
-
-2. **Legacy arbitrary `rgba()` shadow → v4 `rgb()` color syntax**
-
-   Inside JSX `className` strings, plain string literals, and no-substitution
-   template literals:
-
-   ```diff
-   - shadow-[0_0_10px_rgba(0,0,0,0.2)]
-   + shadow-[0_0_10px_rgb(0_0_0_/_0.2)]
-   ```
-
-### Files scanned
-
-- `tailwind.config.{ts,js,mjs,cjs}` at the repo root
-- `*.ts` / `*.tsx` under `src/`, `app/`, and `components/`
-
-### Files ignored
-
-`node_modules`, `dist`, `build`, `.next`, `.git`, `coverage`, `__fixtures__`,
-`__tests__`, and `*.test.*` / `*.spec.*` files.
-
-## Important: report-only by default
-
-Without `--write`, this tool **does not modify your files**. It only generates
-`depshift-report.md` with suggested before/after changes for you to apply
-yourself. With `--write`, the same report is generated after safe transforms are
-written, and the report lists which files were modified.
-
-## Check mode
-
-`--check` is intended for CI. It scans and writes `depshift-report.md`, but never
-modifies source files. It exits with code `1` when suggestions are found and
-code `0` when there are no suggestions. `--write` and `--check` cannot be used
-together.
-
-## JSON output
-
-Pass `--json` to print a structured JSON payload to stdout instead of the
-human-readable summary. It works alongside every mode:
-
-```bash
-node dist/cli.js --json          # report-only + JSON
-node dist/cli.js --check --json  # check mode + JSON (exits 1 if suggestions found)
-node dist/cli.js --write --json  # write mode + JSON
-
-# or via npx from this package directory
-npx . --json
-npx . --check --json
-npx . --write --json
-```
-
-The markdown report is still written to `depshift-report.md`, and exit codes are
-unchanged: `--check --json` exits `1` when suggestions are found and `0`
-otherwise; the other modes exit `0` unless a runtime error occurs. When `--json`
-is set, **stdout is valid JSON only** — runtime errors go to stderr.
-
-The payload is shaped for CI, PR comment, and GitHub App consumers and omits the
-large before/after code strings (those stay in `depshift-report.md`):
-
-```json
-{
-  "mode": "report-only",
-  "tailwind": {
-    "found": true,
-    "versionRange": "^3.4.0",
-    "dependencySection": "devDependencies"
-  },
-  "filesScanned": 1,
-  "suggestionsFound": 1,
-  "filesModified": [],
-  "reportPath": "/abs/path/to/depshift-report.md",
-  "checkResult": null,
-  "suggestions": [
-    {
-      "filePath": "tailwind.config.ts",
-      "transformName": "tailwind-config-content-array-to-object",
-      "message": "Tailwind v4 prefers the object form for `content`. Wrap the array in `{ files: [...] }`."
-    }
-  ]
-}
-```
-
-In check mode `checkResult` is `"passed"` or `"failed"`; in the other modes it is
-`null`. Paths in `suggestions[].filePath` and `filesModified` are repo-relative.
-
-## GitHub Actions
-
-This repository includes a pull request workflow at
-`.github/workflows/depshift-tailwind.yml`. It checks out the repo, sets up
-Node.js 20, installs dependencies, builds the CLI, runs `node dist/cli.js
---check --json` (saving the structured output to `depshift-result.json`), posts
-or updates a single PR comment, uploads `depshift-report.md` as an artifact when
-the report exists, and finally fails the job when migration suggestions are
-found.
-
-Example workflow:
-
-```yaml
-name: DepShift Tailwind
-
-on:
-  pull_request:
-
-jobs:
-  depshift-tailwind:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - run: npm ci
-      - run: npm run build
-      - run: node dist/cli.js --check
-
-      - name: Upload DepShift report
-        if: ${{ always() && hashFiles('depshift-report.md') != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: depshift-report
-          path: depshift-report.md
-```
-
-### Pull request comments
-
-On `pull_request` runs, the workflow posts a single sticky comment summarizing
-the scan, using the built-in `GITHUB_TOKEN` and `actions/github-script`. The
-comment carries a hidden marker (`<!-- depshift-tailwind-comment -->`) so
-re-runs **update the same comment instead of adding new ones**.
-
-- When suggestions are found, the comment reports how many, lists the affected
-  files (derived from `suggestions[].filePath` in `depshift-result.json`), and
-  notes that the full `depshift-report.md` is uploaded as the `depshift-report`
-  artifact.
-- When no suggestions are found, the comment simply says so.
-
-The check still fails the job when suggestions exist, but the comment, summary,
-and artifact steps run first so you always get feedback on the PR. This requires
-the workflow permissions `pull-requests: write` and `issues: write` (PR comments
-are issue comments); `contents: read` and `actions: read` are also granted. No
-GitHub App, server, or auto-commit is involved — everything runs inside the
-workflow.
-
-The project also includes a root `action.yml` for future local composite-action
-usage:
-
-```yaml
-steps:
-  - uses: actions/checkout@v4
-  - uses: ./
-    with:
-      mode: check
-```
-
-For pull requests, prefer `mode: check`. It leaves source files untouched and
-fails the workflow when migration suggestions exist. Do not run `--write`
-automatically on untrusted pull requests yet; write mode modifies files in the
-checked-out workspace. The workflow now posts a summary PR comment (see above),
-but this project still does not auto-commit fixes or open follow-up pull
-requests.
+- Publish to npm for `npx depshift-tailwind` usage
+- Monorepo / custom package-path support
+- More Tailwind v4 transforms
+- Richer Tailwind config handling
+- A GitHub App for repo-wide checks (later)
 
 ## Development
 
@@ -256,8 +126,3 @@ requests.
 npm test       # run the Vitest suite
 npm run build  # type-check and emit to dist/
 ```
-
-## Roadmap
-
-1. A GitHub App for repo-wide checks.
-2. Paid auto-fix commits / PRs.
