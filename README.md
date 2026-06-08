@@ -135,6 +135,12 @@ migrate a project to Tailwind v4 — treat it as an assistant that handles a few
 well-understood patterns and surfaces them in PRs. Always review the generated
 report before merging.
 
+## Contributing & feedback
+
+- **[Known limitations](./KNOWN_LIMITATIONS.md)** — what DepShift does *not* do yet.
+- **[Contributing guide](./CONTRIBUTING.md)** — install, test, build, and how to add a transform.
+- **[Request a transform](https://github.com/kalfinio/depshift-tailwind/issues/new?template=transform-request.md)** — suggest a new Tailwind v3 → v4 pattern (bug and false-positive templates are available too).
+
 ## Roadmap
 
 - Publish to npm for `npx depshift-tailwind` usage
