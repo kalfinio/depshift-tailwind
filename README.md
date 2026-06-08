@@ -126,3 +126,18 @@ report before merging.
 npm test       # run the Vitest suite
 npm run build  # type-check and emit to dist/
 ```
+
+## Packaging
+
+This package is **not published to npm yet**. To preview exactly what *would* be
+published — without creating a tarball or publishing anything — run:
+
+```bash
+npm pack --dry-run
+```
+
+It prints the file list and package size. Thanks to the `files` whitelist in
+`package.json`, only `dist/`, `action.yml`, `README.md`, `package.json`, and
+`LICENSE` are included — source, tests, and config are left out. The `prepack`
+script rebuilds `dist/` automatically before packing or publishing, so the
+output always reflects the current source.

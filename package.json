@@ -1,25 +1,50 @@
 {
   "name": "depshift-tailwind",
   "version": "0.1.0",
-  "description": "Minimal CLI that scans a local repo for safe Tailwind CSS v3 -> v4 migration issues and writes a markdown report.",
+  "description": "CLI and GitHub Action that scans repositories for safe Tailwind CSS v3 → v4 migration suggestions, with report, --write, --check, and --json modes.",
   "type": "module",
-  "bin": {
-    "depshift-tailwind": "./dist/cli.js"
+  "license": "MIT",
+  "author": "kalfinio (https://github.com/kalfinio)",
+  "homepage": "https://github.com/kalfinio/depshift-tailwind#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kalfinio/depshift-tailwind.git"
   },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "postbuild": "node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
-    "test": "vitest run",
-    "dev": "tsx src/cli.ts"
+  "bugs": {
+    "url": "https://github.com/kalfinio/depshift-tailwind/issues"
   },
   "keywords": [
     "tailwind",
     "tailwindcss",
+    "tailwind-v4",
+    "tailwindcss-v4",
+    "tailwind-migration",
     "migration",
     "codemod",
-    "cli"
+    "ast",
+    "ts-morph",
+    "cli",
+    "github-action"
   ],
-  "license": "MIT",
+  "bin": {
+    "depshift-tailwind": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "node -e \"require('node:fs').chmodSync('dist/cli.js', 0o755)\"",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "dev": "tsx src/cli.ts"
+  },
   "dependencies": {
     "ts-morph": "^23.0.0"
   },
