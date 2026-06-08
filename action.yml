@@ -1,0 +1,35 @@
+name: DepShift Tailwind
+description: Scan Tailwind v3 to v4 migration issues
+
+inputs:
+  mode:
+    description: Run mode. Use "check" for CI or "write" to apply safe transforms.
+    required: false
+    default: check
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: npm install
+
+    - name: Build CLI
+      shell: bash
+      run: npm run build
+
+    - name: Run DepShift Tailwind
+      shell: bash
+      run: |
+        case "${{ inputs.mode }}" in
+          check)
+            node dist/cli.js --check
+            ;;
+          write)
+            node dist/cli.js --write
+            ;;
+          *)
+            echo "Invalid mode: ${{ inputs.mode }}. Expected 'check' or 'write'." >&2
+            exit 1
+            ;;
+        esac

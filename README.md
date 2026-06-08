@@ -120,6 +120,61 @@ modifies source files. It exits with code `1` when suggestions are found and
 code `0` when there are no suggestions. `--write` and `--check` cannot be used
 together.
 
+## GitHub Actions
+
+This repository includes an example pull request workflow at
+`.github/workflows/depshift-tailwind.yml`. It checks out the repo, sets up
+Node.js 20, installs dependencies, builds the CLI, runs `node dist/cli.js
+--check`, and uploads `depshift-report.md` as an artifact when the report exists.
+
+Example workflow:
+
+```yaml
+name: DepShift Tailwind
+
+on:
+  pull_request:
+
+jobs:
+  depshift-tailwind:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+      - run: npm run build
+      - run: node dist/cli.js --check
+
+      - name: Upload DepShift report
+        if: ${{ always() && hashFiles('depshift-report.md') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: depshift-report
+          path: depshift-report.md
+```
+
+The project also includes a root `action.yml` for future local composite-action
+usage:
+
+```yaml
+steps:
+  - uses: actions/checkout@v4
+  - uses: ./
+    with:
+      mode: check
+```
+
+For pull requests, prefer `mode: check`. It leaves source files untouched and
+fails the workflow when migration suggestions exist. Do not run `--write`
+automatically on untrusted pull requests yet; write mode modifies files in the
+checked-out workspace and this project does not currently add PR comments,
+auto-commit fixes, or open follow-up pull requests.
+
 ## Development
 
 ```bash
@@ -129,6 +184,5 @@ npm run build  # type-check and emit to dist/
 
 ## Roadmap
 
-1. A GitHub Action wrapper for CI.
-2. A GitHub App for repo-wide checks.
-3. Paid auto-fix commits / PRs.
+1. A GitHub App for repo-wide checks.
+2. Paid auto-fix commits / PRs.
