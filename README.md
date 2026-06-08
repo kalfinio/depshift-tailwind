@@ -139,7 +139,14 @@ report before merging.
 
 - **[Known limitations](./KNOWN_LIMITATIONS.md)** — what DepShift does *not* do yet.
 - **[Contributing guide](./CONTRIBUTING.md)** — install, test, build, and how to add a transform.
-- **[Request a transform](https://github.com/kalfinio/depshift-tailwind/issues/new?template=transform-request.md)** — suggest a new Tailwind v3 → v4 pattern (bug and false-positive templates are available too).
+
+## Feedback and issues
+
+Found a problem or want DepShift to handle another pattern? Open an issue:
+
+- **[Request a transform](https://github.com/kalfinio/depshift-tailwind/issues/new?template=transform-request.md)** — suggest a new safe Tailwind v3 → v4 migration.
+- **[Report a bug](https://github.com/kalfinio/depshift-tailwind/issues/new?template=bug-report.md)** — something didn't work as expected.
+- **[Report a false positive](https://github.com/kalfinio/depshift-tailwind/issues/new?template=false-positive.md)** — DepShift flagged code it shouldn't have.
 
 ## Roadmap
 

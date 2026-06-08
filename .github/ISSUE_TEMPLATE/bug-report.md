@@ -1,8 +1,9 @@
 ---
 name: Bug report
-about: Report incorrect or unexpected DepShift Tailwind behavior
-title: "[bug] "
-labels: ["bug"]
+about: Report a problem with DepShift Tailwind
+title: "[Bug]: "
+labels: bug
+assignees: ""
 ---
 
 Thanks for the report! Please include the details below so the issue can be
@@ -22,16 +23,19 @@ reproduced.
 
 ## Actual behavior
 
-<!-- What actually happened. Include terminal output or the relevant part of
-depshift-report.md if helpful. -->
+<!-- What actually happened. Include terminal output if helpful. -->
 
 ## Node version
 
 <!-- Output of `node --version` -->
 
-## Package manager
+## Package manager and version
 
-<!-- npm / pnpm / yarn / bun, and its version if known. -->
+<!-- e.g. npm 10.8.0 / pnpm 9.7.0 / yarn 4.4.0 / bun 1.1.0 -->
+
+## Operating system
+
+<!-- e.g. Windows 11, macOS 14.5, Ubuntu 24.04 -->
 
 ## Minimal reproduction
 
@@ -40,3 +44,9 @@ The smallest possible setup that reproduces the issue: a tiny config or source
 snippet, or a link to a minimal repo/branch. The more minimal, the faster this
 can be fixed.
 -->
+
+## Relevant `depshift-report.md` excerpt (if available)
+
+```markdown
+
+```
