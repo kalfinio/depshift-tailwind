@@ -64,6 +64,29 @@ the PR even when the check fails. PR comments need `pull-requests: write` and
 `issues: write` permissions, which the workflow declares, and it uses the
 built-in `GITHUB_TOKEN` — no GitHub App or server required.
 
+## Example PR comment
+
+When suggestions are found, the action posts a comment like this on the pull
+request:
+
+> **DepShift Tailwind**
+>
+> DepShift Tailwind found 2 migration suggestions.
+>
+> Files affected:
+> - `src/brokenTailwindClass.ts`
+> - `tailwind.config.ts`
+>
+> The full `depshift-report.md` is uploaded as the `depshift-report` workflow
+> artifact.
+
+The workflow attaches a hidden marker (`<!-- depshift-tailwind-comment -->`) to
+this comment, so subsequent runs **update the same single DepShift comment**
+instead of spamming the PR with a new one each time.
+
+This comment is informational — in `--check` mode the PR check still **fails**
+when suggestions are found, so the migration work isn't silently merged.
+
 ## Supported transforms
 
 DepShift uses [ts-morph](https://ts-morph.com/) to edit the AST, so changes are
