@@ -9,6 +9,8 @@ const EXCLUDED_DIRS = new Set([
   ".next",
   ".git",
   "coverage",
+  "__fixtures__",
+  "__tests__",
 ]);
 
 /** Source directories that are recursively scanned when present. */
@@ -30,8 +32,9 @@ const SCAN_EXTENSIONS = new Set([".ts", ".tsx"]);
  *  - root Tailwind config files (any supported extension)
  *  - `.ts` / `.tsx` files under src/, app/, components/
  *
- * Excluded directories (node_modules, dist, build, .next, .git, coverage) are
- * skipped at every level. The result is sorted for deterministic output.
+ * Excluded directories (node_modules, dist, build, .next, .git, coverage,
+ * __fixtures__, __tests__) are skipped at every level. Test/spec files are also
+ * skipped. The result is sorted for deterministic output.
  */
 export async function findCandidateFiles(rootDir: string): Promise<string[]> {
   const root = resolve(rootDir);
@@ -72,11 +75,19 @@ async function walk(dir: string, results: string[]): Promise<void> {
       }
       await walk(join(dir, entry.name), results);
     } else if (entry.isFile()) {
-      if (SCAN_EXTENSIONS.has(extname(entry.name))) {
+      if (isScannableSourceFile(entry.name)) {
         results.push(join(dir, entry.name));
       }
     }
   }
+}
+
+function isScannableSourceFile(fileName: string): boolean {
+  return SCAN_EXTENSIONS.has(extname(fileName)) && !isTestOrSpecFile(fileName);
+}
+
+function isTestOrSpecFile(fileName: string): boolean {
+  return /\.(test|spec)\.(ts|tsx|js|jsx)$/i.test(fileName);
 }
 
 async function isFile(path: string): Promise<boolean> {
