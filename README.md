@@ -104,7 +104,8 @@ npm run dev
 
 ### Files ignored
 
-`node_modules`, `dist`, `build`, `.next`, `.git`, and `coverage`.
+`node_modules`, `dist`, `build`, `.next`, `.git`, `coverage`, `__fixtures__`,
+`__tests__`, and `*.test.*` / `*.spec.*` files.
 
 ## Important: report-only by default
 
