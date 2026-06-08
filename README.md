@@ -173,10 +173,13 @@ In check mode `checkResult` is `"passed"` or `"failed"`; in the other modes it i
 
 ## GitHub Actions
 
-This repository includes an example pull request workflow at
+This repository includes a pull request workflow at
 `.github/workflows/depshift-tailwind.yml`. It checks out the repo, sets up
 Node.js 20, installs dependencies, builds the CLI, runs `node dist/cli.js
---check`, and uploads `depshift-report.md` as an artifact when the report exists.
+--check --json` (saving the structured output to `depshift-result.json`), posts
+or updates a single PR comment, uploads `depshift-report.md` as an artifact when
+the report exists, and finally fails the job when migration suggestions are
+found.
 
 Example workflow:
 
@@ -209,6 +212,26 @@ jobs:
           path: depshift-report.md
 ```
 
+### Pull request comments
+
+On `pull_request` runs, the workflow posts a single sticky comment summarizing
+the scan, using the built-in `GITHUB_TOKEN` and `actions/github-script`. The
+comment carries a hidden marker (`<!-- depshift-tailwind-comment -->`) so
+re-runs **update the same comment instead of adding new ones**.
+
+- When suggestions are found, the comment reports how many, lists the affected
+  files (derived from `suggestions[].filePath` in `depshift-result.json`), and
+  notes that the full `depshift-report.md` is uploaded as the `depshift-report`
+  artifact.
+- When no suggestions are found, the comment simply says so.
+
+The check still fails the job when suggestions exist, but the comment, summary,
+and artifact steps run first so you always get feedback on the PR. This requires
+the workflow permissions `pull-requests: write` and `issues: write` (PR comments
+are issue comments); `contents: read` and `actions: read` are also granted. No
+GitHub App, server, or auto-commit is involved — everything runs inside the
+workflow.
+
 The project also includes a root `action.yml` for future local composite-action
 usage:
 
@@ -223,8 +246,9 @@ steps:
 For pull requests, prefer `mode: check`. It leaves source files untouched and
 fails the workflow when migration suggestions exist. Do not run `--write`
 automatically on untrusted pull requests yet; write mode modifies files in the
-checked-out workspace and this project does not currently add PR comments,
-auto-commit fixes, or open follow-up pull requests.
+checked-out workspace. The workflow now posts a summary PR comment (see above),
+but this project still does not auto-commit fixes or open follow-up pull
+requests.
 
 ## Development
 

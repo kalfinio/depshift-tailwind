@@ -3,6 +3,12 @@ name: DepShift Tailwind
 on:
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
 jobs:
   depshift-tailwind:
     name: DepShift Tailwind check
@@ -24,7 +30,93 @@ jobs:
         run: npm run build
 
       - name: Run DepShift Tailwind check
-        run: node dist/cli.js --check
+        id: depshift
+        shell: bash
+        run: |
+          # Capture the JSON output and the exit code without failing the step,
+          # so the summary / comment / artifact steps below still run. The job
+          # is failed later by the "Enforce DepShift check result" step.
+          set +e
+          node dist/cli.js --check --json > depshift-result.json
+          code=$?
+          set -e
+          echo "exit_code=${code}" >> "$GITHUB_OUTPUT"
+          echo "DepShift Tailwind check exited with code ${code}."
+
+      - name: Comment DepShift results on the pull request
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- depshift-tailwind-comment -->';
+
+            let result;
+            try {
+              result = JSON.parse(fs.readFileSync('depshift-result.json', 'utf8'));
+            } catch (error) {
+              core.warning(
+                `Skipping PR comment: could not read depshift-result.json (${error.message}).`,
+              );
+              return;
+            }
+
+            const suggestionsFound = Number(result.suggestionsFound ?? 0);
+            let body;
+            if (suggestionsFound > 0) {
+              const files = [...new Set((result.suggestions || []).map((s) => s.filePath))];
+              const fileList = files.map((file) => `- \`${file}\``).join('\n');
+              body = [
+                marker,
+                '## DepShift Tailwind',
+                '',
+                `**DepShift Tailwind found ${suggestionsFound} migration suggestion${
+                  suggestionsFound === 1 ? '' : 's'
+                }.**`,
+                '',
+                `Files affected (${files.length}):`,
+                fileList,
+                '',
+                'The full `depshift-report.md` is uploaded as the `depshift-report` workflow artifact.',
+              ].join('\n');
+            } else {
+              body = [
+                marker,
+                '## DepShift Tailwind',
+                '',
+                'DepShift Tailwind found no migration suggestions. ✅',
+              ].join('\n');
+            }
+
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.pull_request.number;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (comment) => comment.body && comment.body.includes(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            }
 
       - name: Write GitHub Actions summary
         if: ${{ always() }}
@@ -51,3 +143,15 @@ jobs:
         with:
           name: depshift-report
           path: depshift-report.md
+
+      - name: Enforce DepShift check result
+        if: ${{ always() }}
+        shell: bash
+        env:
+          DEPSHIFT_EXIT_CODE: ${{ steps.depshift.outputs.exit_code }}
+        run: |
+          if [ "${DEPSHIFT_EXIT_CODE}" != "0" ]; then
+            echo "DepShift Tailwind check failed (exit code ${DEPSHIFT_EXIT_CODE})." >&2
+            exit "${DEPSHIFT_EXIT_CODE:-1}"
+          fi
+          echo "DepShift Tailwind check passed: no migration suggestions found."

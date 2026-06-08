@@ -1,5 +1,6 @@
 node_modules/
 dist/
 depshift-report.md
+depshift-result.json
 *.log
 desktop.ini
