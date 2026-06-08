@@ -121,6 +121,56 @@ modifies source files. It exits with code `1` when suggestions are found and
 code `0` when there are no suggestions. `--write` and `--check` cannot be used
 together.
 
+## JSON output
+
+Pass `--json` to print a structured JSON payload to stdout instead of the
+human-readable summary. It works alongside every mode:
+
+```bash
+node dist/cli.js --json          # report-only + JSON
+node dist/cli.js --check --json  # check mode + JSON (exits 1 if suggestions found)
+node dist/cli.js --write --json  # write mode + JSON
+
+# or via npx from this package directory
+npx . --json
+npx . --check --json
+npx . --write --json
+```
+
+The markdown report is still written to `depshift-report.md`, and exit codes are
+unchanged: `--check --json` exits `1` when suggestions are found and `0`
+otherwise; the other modes exit `0` unless a runtime error occurs. When `--json`
+is set, **stdout is valid JSON only** — runtime errors go to stderr.
+
+The payload is shaped for CI, PR comment, and GitHub App consumers and omits the
+large before/after code strings (those stay in `depshift-report.md`):
+
+```json
+{
+  "mode": "report-only",
+  "tailwind": {
+    "found": true,
+    "versionRange": "^3.4.0",
+    "dependencySection": "devDependencies"
+  },
+  "filesScanned": 1,
+  "suggestionsFound": 1,
+  "filesModified": [],
+  "reportPath": "/abs/path/to/depshift-report.md",
+  "checkResult": null,
+  "suggestions": [
+    {
+      "filePath": "tailwind.config.ts",
+      "transformName": "tailwind-config-content-array-to-object",
+      "message": "Tailwind v4 prefers the object form for `content`. Wrap the array in `{ files: [...] }`."
+    }
+  ]
+}
+```
+
+In check mode `checkResult` is `"passed"` or `"failed"`; in the other modes it is
+`null`. Paths in `suggestions[].filePath` and `filesModified` are repo-relative.
+
 ## GitHub Actions
 
 This repository includes an example pull request workflow at

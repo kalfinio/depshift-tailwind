@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { buildMarkdownReport } from "./report.js";
 import { scanRepository, type ScanResult } from "./scanner.js";
@@ -12,6 +12,30 @@ export interface ParsedCliArgs {
   mode: CliMode;
   writeMode: boolean;
   checkMode: boolean;
+  json: boolean;
+}
+
+/** A single suggestion as exposed in `--json` output (no large code strings). */
+export interface JsonSuggestion {
+  filePath: string;
+  transformName: string;
+  message: string;
+}
+
+/** Structured `--json` payload, intended for CI / PR comment / App consumers. */
+export interface JsonReport {
+  mode: CliMode;
+  tailwind: {
+    found: boolean;
+    versionRange: string | null;
+    dependencySection: string | null;
+  };
+  filesScanned: number;
+  suggestionsFound: number;
+  filesModified: string[];
+  reportPath: string;
+  checkResult: "passed" | "failed" | null;
+  suggestions: JsonSuggestion[];
 }
 
 export interface RunCliOptions {
@@ -44,12 +68,18 @@ export async function runCli(options: RunCliOptions = {}): Promise<number> {
     const reportPath = join(rootDir, REPORT_FILENAME);
     await writeFile(reportPath, report, "utf8");
 
-    printSummary({
-      result,
-      mode: parsed.mode,
-      reportPath,
-      log,
-    });
+    if (parsed.json) {
+      // stdout must be valid JSON only: no human-readable summary here.
+      const jsonReport = buildJsonReport({ result, mode: parsed.mode, reportPath });
+      log(JSON.stringify(jsonReport, null, 2));
+    } else {
+      printSummary({
+        result,
+        mode: parsed.mode,
+        reportPath,
+        log,
+      });
+    }
 
     if (parsed.checkMode) {
       return result.suggestions.length === 0 ? 0 : 1;
@@ -66,6 +96,7 @@ export async function runCli(options: RunCliOptions = {}): Promise<number> {
 export function parseArgs(args: string[]): ParsedCliArgs {
   let writeMode = false;
   let checkMode = false;
+  let json = false;
 
   for (const arg of args) {
     if (arg === "--write") {
@@ -75,6 +106,11 @@ export function parseArgs(args: string[]): ParsedCliArgs {
 
     if (arg === "--check") {
       checkMode = true;
+      continue;
+    }
+
+    if (arg === "--json") {
+      json = true;
       continue;
     }
 
@@ -89,7 +125,51 @@ export function parseArgs(args: string[]): ParsedCliArgs {
     mode: checkMode ? "check" : writeMode ? "write" : "report-only",
     writeMode,
     checkMode,
+    json,
   };
+}
+
+/**
+ * Builds the structured `--json` payload from a scan result. Pure function:
+ * it does not touch the filesystem. Large before/after code strings are
+ * intentionally omitted so the payload stays small for CI consumers.
+ */
+export function buildJsonReport(input: {
+  result: ScanResult;
+  mode: CliMode;
+  reportPath: string;
+}): JsonReport {
+  const { result, mode, reportPath } = input;
+  const { rootDir, packageInfo, filesScanned, suggestions, filesModified, checkMode } =
+    result;
+
+  return {
+    mode,
+    tailwind: {
+      found: packageInfo.found,
+      versionRange: packageInfo.versionRange ?? null,
+      dependencySection: packageInfo.dependencySection ?? null,
+    },
+    filesScanned: filesScanned.length,
+    suggestionsFound: suggestions.length,
+    filesModified: filesModified.map((filePath) => toRelativeDisplay(filePath, rootDir)),
+    reportPath,
+    checkResult: checkMode ? (suggestions.length === 0 ? "passed" : "failed") : null,
+    suggestions: suggestions.map((suggestion) => ({
+      filePath: toRelativeDisplay(suggestion.filePath, rootDir),
+      transformName: suggestion.transformName,
+      message: suggestion.message,
+    })),
+  };
+}
+
+function toRelativeDisplay(filePath: string, rootDir: string): string {
+  const rel = relative(rootDir, filePath);
+  if (rel === "" || rel.startsWith("..")) {
+    return filePath;
+  }
+  // Normalize Windows separators for stable, portable output.
+  return rel.split("\\").join("/");
 }
 
 function printSummary(input: {
