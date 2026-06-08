@@ -1,108 +1,124 @@
 # Contributing to DepShift Tailwind
 
-Thanks for your interest in improving DepShift Tailwind! This project is a small,
-focused MVP (see [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md)), so the most
-valuable contributions are **safe, narrow transforms** and clear bug/false-positive
-reports.
+Thanks for your interest in improving DepShift Tailwind! The most valuable
+contributions are **safe, narrow Tailwind v3 → v4 transforms** and clear
+bug / false-positive reports.
 
-If you're proposing a change before writing code, please open an issue first:
+If you'd like to propose something before writing code, open an issue first:
 
 - [Request a transform](https://github.com/kalfinio/depshift-tailwind/issues/new?template=transform-request.md)
 - [Report a bug](https://github.com/kalfinio/depshift-tailwind/issues/new?template=bug-report.md)
 - [Report a false positive](https://github.com/kalfinio/depshift-tailwind/issues/new?template=false-positive.md)
 
-## Prerequisites
+## Project status
 
-- Node.js 18 or newer (CI uses Node 20)
-- npm
+**DepShift Tailwind is not a full Tailwind v4 migration tool yet.** It is an MVP
+with a small, deliberately safe transform set. It catches a few specific,
+well-understood patterns — it does not perform a complete v4 migration and will
+miss many real migration issues. See
+[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md) for the full picture. Contributions
+that keep this safe, focused character are very welcome.
 
-## Install
+## Local setup
+
+Requires Node.js 18 or newer (CI uses Node 20) and npm.
 
 ```bash
 npm install
-```
-
-## Run the tests
-
-```bash
 npm test
-```
-
-Tests run with [Vitest](https://vitest.dev/). Please keep the suite green.
-
-## Build
-
-```bash
 npm run build
 ```
 
-This type-checks the project and emits JavaScript to `dist/`. The build is strict
-TypeScript — fix all type errors before opening a PR.
+## Useful commands
 
-To try the CLI against the repo itself (or any local repo) while developing:
+| Command | What it does |
+| --- | --- |
+| `npm install` | Install dependencies. |
+| `npm test` | Run the [Vitest](https://vitest.dev/) suite once. |
+| `npm run build` | Type-check (strict) and emit JavaScript to `dist/`. |
+| `npm run dev` | Run `src/cli.ts` directly with `tsx` (no build step). |
+
+## How to run the CLI locally
+
+After `npm run build`, run the compiled CLI from the root of the repo you want to
+scan:
 
 ```bash
-npm run dev            # runs src/cli.ts with tsx
-# or, after building:
-node dist/cli.js
+node dist/cli.js               # report-only: write depshift-report.md, change nothing
+node dist/cli.js --check       # CI mode: exit 1 if any suggestions are found
+node dist/cli.js --write       # apply the supported safe transforms in place
+node dist/cli.js --json        # print structured JSON to stdout
+node dist/cli.js --check --json   # check mode + JSON (exit 1 on suggestions)
 ```
 
-## Adding a new transform (high level)
+During development you can skip the build and use `npm run dev` instead of
+`node dist/cli.js`.
 
-All transforms live in
-[`src/transforms/tailwind3to4.ts`](./src/transforms/tailwind3to4.ts). At a high
-level, a new transform should:
+## How transforms are organized
 
-1. **Detect the pattern with the AST.** DepShift uses
-   [ts-morph](https://ts-morph.com/). Walk the in-memory source file and match
-   the specific node(s) you care about (e.g. a `PropertyAssignment`, a
+- **`src/transforms/tailwind3to4.ts`** — all transforms live here. It exposes
+  `analyzeTailwind3to4File` (report-only) and `applyTailwind3to4File` (`--write`),
+  both backed by one ts-morph pass over an in-memory source file. Each detection
+  emits a `TransformSuggestion` (`filePath`, `transformName`, `before`, `after`,
+  `message`).
+- **`src/transforms/__fixtures__/tailwindFixtures.ts`** — shared before/after
+  sample source used by the tests.
+- **`src/transforms/tailwind3to4.test.ts`** — Vitest coverage for each transform.
+- **`src/scanner.ts`, `src/report.ts`, `src/cliCore.ts`** — consume the
+  suggestions your transform emits. A typical new transform does **not** need to
+  touch these.
+
+## How to add a new transform
+
+1. **Detect the pattern with the AST.** Walk the in-memory ts-morph source file
+   and match the specific node(s) you care about (e.g. a `PropertyAssignment`, a
    `StringLiteral`, a JSX attribute). Avoid blind text/regex replacement across
    whole files.
-2. **Produce a `TransformSuggestion`.** Push an object with `filePath`,
-   a unique `transformName`, the `before` text, the `after` text, and a short
+2. **Emit a `TransformSuggestion`.** Push an object with `filePath`, a unique
+   `transformName`, the `before` text, the `after` text, and a short
    human-readable `message`. This is what report mode and `--json` surface.
 3. **Support `--write` safely.** When the analysis runs in apply mode, perform
-   the edit on the AST node so the same change can be written back to disk. Read
-   how the existing two transforms thread the `apply` flag and keep their output
+   the edit on the AST node so the same change can be written back to disk. Follow
+   how the two existing transforms thread the `apply` flag and keep output
    deterministic.
+4. **Add fixtures and tests** (see Testing expectations) and update the README
+   "Supported transforms" section.
 
-You do **not** need to touch the scanner, report, or CLI for a typical new
-transform — they consume the suggestions your transform emits.
+## Safety rules for transforms
 
-### New transforms must include fixtures and tests
+DepShift's value is that its changes are trustworthy. Every transform must:
 
-Every new transform must come with:
+- **Be narrow and safe.** Match a specific, documented pattern and only rewrite
+  code when the result is unambiguously equivalent in Tailwind v4. When in doubt,
+  report but do not auto-fix. Prefer false negatives (missing a case) over false
+  positives (changing something it shouldn't).
+- **Avoid broad, risky rewrites.** Do not ship sweeping or speculative edits. If
+  a migration can't be made safe and narrow, leave it as a documented limitation.
+- **Never modify files in the default (report-only) mode.** Without `--write`,
+  DepShift must only read files and produce `depshift-report.md`.
+- **Keep `--write` limited to supported safe transforms.** `--write` applies only
+  the same documented transforms shown in report mode — nothing speculative.
 
-- **Fixtures** in
-  [`src/transforms/__fixtures__/tailwindFixtures.ts`](./src/transforms/__fixtures__/tailwindFixtures.ts)
-  — realistic before/after samples.
-- **Tests** in
-  [`src/transforms/tailwind3to4.test.ts`](./src/transforms/tailwind3to4.test.ts)
-  covering: the pattern is detected, the `before`/`after` are correct, already-
-  migrated code produces **no** suggestion, and no duplicate suggestions are
-  emitted.
+## Testing expectations
 
-If your transform interacts with scanning or `--write`, add coverage in the
-relevant `*.test.ts` as well.
+- **Every transform needs before/after fixtures** in
+  `src/transforms/__fixtures__/tailwindFixtures.ts`.
+- **Every transform needs Vitest coverage** in
+  `src/transforms/tailwind3to4.test.ts` that asserts: the pattern is detected,
+  the `before`/`after` values are correct, already-migrated code produces **no**
+  suggestion, and no duplicate suggestions are emitted.
+- If your transform affects scanning or `--write`, add coverage in the relevant
+  `*.test.ts` (e.g. `src/scanner.test.ts`, `src/cliCore.test.ts`).
+- Keep the whole suite green: `npm test` must pass before you open a PR.
 
-### Transforms must be safe and narrow
+## Pull request checklist
 
-DepShift's whole value is that its changes are trustworthy. A transform should:
-
-- Be **safe**: only rewrite code when the result is unambiguously equivalent in
-  Tailwind v4. When in doubt, report but do not auto-fix.
-- Be **narrow**: match a specific, documented pattern. Prefer false negatives
-  (missing a case) over false positives (changing something it shouldn't).
-- Be **deterministic**: the same input always yields the same output and
-  ordering.
-
-If a migration can't be made safe and narrow, it's better to leave it as a
-documented limitation than to ship a risky transform.
-
-## Pull requests
-
-- Keep PRs focused and small.
-- Run `npm test` and `npm run build` before pushing.
-- Update the README "Supported transforms" section when you add a transform.
-- Do not add out-of-scope features (GitHub App, billing, auto-commit, broad
-  framework migrations) — see [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
+- [ ] `npm test` passes.
+- [ ] `npm run build` passes (no TypeScript errors).
+- [ ] New/changed transforms include before/after fixtures and Vitest coverage.
+- [ ] Transforms are narrow, safe, and deterministic — no broad risky rewrites.
+- [ ] Default report-only mode does not modify files; `--write` only applies
+      supported safe transforms.
+- [ ] README "Supported transforms" updated if you added a transform.
+- [ ] No out-of-scope features (GitHub App, billing, auto-commit, broad framework
+      migrations) — see [KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md).
