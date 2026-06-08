@@ -26,6 +26,25 @@ jobs:
       - name: Run DepShift Tailwind check
         run: node dist/cli.js --check
 
+      - name: Write GitHub Actions summary
+        if: ${{ always() }}
+        env:
+          REPORT_EXISTS: ${{ hashFiles('depshift-report.md') != '' }}
+        run: |
+          if [ "${REPORT_EXISTS}" = "true" ]; then
+            REPORT_STATUS="yes"
+          else
+            REPORT_STATUS="no"
+          fi
+
+          {
+            echo "## DepShift Tailwind Summary"
+            echo ""
+            echo "- `depshift-report.md` generated: ${REPORT_STATUS}"
+            echo "- `--check` fails the workflow when migration suggestions are found."
+            echo "- Full report: uploaded as the \`depshift-report\` artifact."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload DepShift report
         if: ${{ always() && hashFiles('depshift-report.md') != '' }}
         uses: actions/upload-artifact@v4
