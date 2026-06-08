@@ -1,0 +1,5 @@
+node_modules/
+dist/
+depshift-report.md
+*.log
+desktop.ini
